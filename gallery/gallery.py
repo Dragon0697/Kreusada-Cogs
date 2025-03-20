@@ -191,3 +191,14 @@ class Gallery(commands.Cog):
                 await message.delete()
             except discord.Forbidden:
                 log.warning("Unable to delete message in Gallery channel %s", message.channel.id)
+                return
+
+            try:
+                thread = await message.create_thread(
+                    name=f":camera: {message.author.display_name}'s Bild",
+                    auto_archive_duration=4320
+                )
+            except discord.Forbidden:
+                log.warning("Konnte keinen Thread für Nachricht in %s erstellen", message.channel.id)
+            except discord.HTTPException as e:
+                log.warning("Fehler beim Erstellen eines Threads: %s", str(e))

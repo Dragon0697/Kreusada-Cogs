@@ -160,45 +160,53 @@ class Gallery(commands.Cog):
         if message.channel.id not in await self.config.guild(message.guild).channels():
             return
 
-        if not message.attachments:
+        is_image = False  # Variable zur Überprüfung, ob die Nachricht ein Bild enthält
+
+        # Überprüfung, ob die Nachricht einen Bildanhang hat
+        if message.attachments:
+            is_image = True
+
+        # Überprüfung, ob die Nachricht einen gültigen Bild-Link enthält
+        else:
             uris = re.findall(
                 r"http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+",
                 message.content,
             )
             if len(uris) == 1:
-                uri = "".join(uris)
-                uri = uri.split("?")[0]
-                parts = uri.split(".")
-                extension = parts[-1]
-                imageTypes = ["jpg", "jpeg", "tiff", "png", "gif", "webp", "bmp"]
-                if "tenor.com" in uri or "giphy.com" in uri or "cdn.discordapp.com" in uri:
-                    return
-                if extension in imageTypes:
-                    return
+                uri = uris[0].split("?")[0]
+                extension = uri.split(".")[-1]
+                image_types = ["jpg", "jpeg", "tiff", "png", "gif", "webp", "bmp"]
+                blocked_domains = ["tenor.com", "giphy.com", "cdn.discordapp.com"]
 
-            whitelist_roles = await self.config.guild(message.guild).whitelist()
-            time = await self.config.guild(message.guild).time()
+                if extension in image_types and not any(domain in uri for domain in blocked_domains):
+                    is_image = True
 
-            if whitelist_roles:
-                user_roles = set(role.id for role in message.author.roles)
-                if user_roles.intersection(whitelist_roles):
-                    return
-
-            if time != 0:
-                await asyncio.sleep(time)
-
-            try:
-                await message.delete()
-            except discord.Forbidden:
-                log.warning("Unable to delete message in Gallery channel %s", message.channel.id)
-                return
-
+        # Wenn die Nachricht ein Bild enthält, erstelle einen Thread
+        if is_image:
             try:
                 thread = await message.create_thread(
-                    name=f":camera: {message.author.display_name}'s Bild",
-                    auto_archive_duration=4320
+                    name=f"📷 {message.author.display_name}'s Bild",
+                    auto_archive_duration=4320  # 3 Tage
                 )
             except discord.Forbidden:
                 log.warning("Konnte keinen Thread für Nachricht in %s erstellen", message.channel.id)
             except discord.HTTPException as e:
                 log.warning("Fehler beim Erstellen eines Threads: %s", str(e))
+            return  # Beende die Funktion, da die Nachricht gültig ist
+
+        # Falls die Nachricht kein Bild ist, wird sie gelöscht
+        whitelist_roles = await self.config.guild(message.guild).whitelist()
+        time = await self.config.guild(message.guild).time()
+
+        if whitelist_roles:
+            user_roles = {role.id for role in message.author.roles}
+            if user_roles.intersection(whitelist_roles):
+                return
+
+        if time != 0:
+            await asyncio.sleep(time)
+
+        try:
+            await message.delete()
+        except discord.Forbidden:
+            log.warning("Unable to delete message in Gallery channel %s", message.channel.id)
